@@ -1,6 +1,6 @@
-my_hash = { "name" => "Eric",
-  "age" => 26,
-  "hungry?" => true
+my_hash = { "name": "Eric",
+  "age": 26,
+  "hungry?": true
 }
 
 puts my_hash["name"]
