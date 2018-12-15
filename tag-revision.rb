@@ -6,18 +6,17 @@ require 'git'
 ###### ********************************************************* ######
 =begin
 
- getLatestTag	    // get the latest tag
+getLatestTag       // get the latest tag
 
- genNewTag	        // increment the last tag
+genNewTag          // increment the last tag
 
- setGitAddCommit    // git add & git commit
- 
- getHeadTag	        // checks if HEAD commit got a tag
+setGitAddCommit    // git add & git commit
+getHeadTag         // checks if HEAD commit got a tag
 
- setGitTag	        // sets new tag
+setGitTag          // sets new tag
 
- gitPushTag	        // push [origin] [master]
- gitPushTag	        // push [origin] [new tag]
+gitPushTag         // push [origin] [master]
+gitPushTag         // push [origin] [new tag]
 
 =end
 ###### ********************************************************* ######
@@ -34,14 +33,15 @@ class Revision
     # Get the latest tag in repo
     def getLatestTag
         tagged_commits = @gop.tags
-
-        Array.new(tagged_commits)
-        last_tag = tagged_commits[-1]
-
-        begin
-            @gop.describe(last_tag, :abbrev => 0, :tags => true)
-        rescue Git::GitExecuteError => giterror
+        harray = Array.new(tagged_commits)
+        all_array = []
+        harray.each do |item|
+            all_array = all_array.push(@gop.describe(item, :abbrev => 0, :tags => true).slice!(1..-1))
         end
+
+        all_array = all_array.sort_by(&Gem::Version.method(:new))
+
+        return "v#{all_array[-1]}"
     end
 
     # Generate new tag
@@ -74,25 +74,30 @@ class Revision
         head_commit_id = @gop.revparse("HEAD")
 
         begin
-         @gop.describe(head_commit_id, :contains => true)
+          @gop.describe(head_commit_id, :contains => true)
         rescue Git::GitExecuteError => giterror
          # do nothing, continue
         end
-    end 
+    end
 
     # Set tag
     def setGitTag(newtag)
-        @gop.add_tag(newtag)
+        #begin
+          @gop.add_tag(newtag)
+        #rescue Git::GitExecuteError => giterror
+        #end
     end
 
     # Push the changes
     def gitPush
+        puts "Pushing commit"
         @gop.push(@remote, @branch)
     end
 
     # Push the new tag
     def gitPushTag(pushTag)
-        @gop.push(@remote, pushTag)
+        puts "Pushing tag"
+        @gop.push(@remote, "refs/tags/#{pushTag}")
     end
 
     # Save file for Bamboo
@@ -102,7 +107,7 @@ class Revision
             aFile.syswrite("version=#{saveTag}")
             aFile.close
         else
-            puts "Unable to write a file!"
+            puts "Unable to write a config.version file!"
         end
     end
 end
@@ -110,24 +115,35 @@ end
 c1 = Revision.new("origin", "master")
 
 # Condition vars
+# w = latest tag
+# i = HEAD commit tag
 w = c1.getLatestTag
 i = c1.getHeadTag
 
+
 # If there's no tag at all, set initial one
 if w.nil?
-    # git add & git commit
-    c1.gitAddCommit
+    puts "Looks like there's no tag at all"
+    puts "Setting an initial tag"
 
     # Set the new tag
     c1.setGitTag("v0.1.0")
 
+    # Generate new tag
+    w = c1.getLatestTag
+
     # Save file for Bamboo
     c1.saveFile(w)
+
+    # git add & git commit
+    c1.gitAddCommit
 
     # Push the changes and new tag
     c1.gitPush
     c1.gitPushTag(w)
 elsif i.nil?
+    puts "Looks like there's no tag on HEAD commit"
+    puts "Setting a new tag"
     # It looks like there's no tag set on HEAD commit
 
     # Generate new tag
@@ -146,22 +162,26 @@ elsif i.nil?
     c1.gitPush
     c1.gitPushTag(r)
 else
+    puts "Looks like the HEAD commit already has a tag"
     # Tag exists
 
-    # Setting output file for bamboo
-    c1.saveFile(w)
-
-    # git add & git commit
-    c1.gitAddCommit
-
-    # Check if the HEAD commit has the tag
-    # if not, set it to current
+    # If latest tag is not the same as head commit tag
+    # update the tag, otherwise there's nothing to do
+    # tags are the same.
     unless w == i
-        c1.setGitTag(w)
-    else
-       puts "tag already exists, nothing to do"
-    end
+        # Setting output file for bamboo
+        c1.saveFile(w)
 
-    # Push changes
-    c1.gitPush
+        # git add & git commit
+        c1.gitAddCommit
+
+        # set new tag
+        c1.setGitTag(w)
+
+        # Push changes
+        c1.gitPush
+        c1.gitPushTag(w)
+    else
+       puts "Tag already exists, nothing to do"
+    end
 end
