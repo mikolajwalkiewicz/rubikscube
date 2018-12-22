@@ -6,8 +6,8 @@
 require 'os'
 
 class PatcherMain
-    def initialize
-        
+    def initialize(x, y)
+        # ..
     end
 
     
